@@ -1,0 +1,100 @@
+service: aws-serverless-api
+frameworkVersion: '3'
+# Add the serverless-webpack plugin
+plugins:
+  - serverless-webpack
+  - serverless-dynamodb-local
+  - serverless-offline
+
+custom:
+  webpack:
+    webpackConfig: ./webpack.config.js
+    includeModules: true
+  serverless-offline:
+    httpPort: 3003
+  dynamodb:
+  # If you only want to use DynamoDB Local in some stages, declare them here
+    stages:	
+      - dev
+    start:
+      port: 8000
+      inMemory: true
+      heapInitial: 200m
+      heapMax: 1g
+      migrate: true
+      seed: true
+      convertEmptyValues: true
+provider:
+  lambdaHashingVersion: 20200924
+  name: aws
+  runtime: nodejs12.x
+  stage: ${opt:stage, 'dev'}
+  region: ${opt:region, 'us-east-2'}
+  environment:
+    AWS_NODEJS_CONNECTION_REUSE_ENABLED: 1
+    USERS_TABLE: Users-${self:provider.stage}
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - dynamodb:Query
+            - dynamodb:Scan
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+          Resource: "arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.USERS_TABLE}"
+
+functions:
+  createUser:
+    handler: src/functions/createUser.handler
+    events:
+      - http:
+          method: post
+          path: create-user
+          cors: true
+  getAllUser:
+    handler: src/functions/getAllUser.handler
+    events:
+      - http:
+          method: get
+          path: get-user
+          cors: true
+  getUser:
+    handler: src/functions/getUser.handler
+    events:
+      - http:
+          method: get
+          path: get-user/{id}
+          cors: true
+  updateUser:
+    handler: src/functions/updateUser.handler
+    events:
+      - http:
+          method: put
+          path: update-user/{id}
+          cors: true
+  deleteUser:
+    handler: src/functions/deleteUser.handler
+    events:
+      - http:
+          method: delete
+          path: delete-user/{id}
+          cors: true
+
+resources:
+  Resources:
+    UsersListTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.USERS_TABLE}
+        AttributeDefinitions:
+          - AttributeName: id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: id
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
